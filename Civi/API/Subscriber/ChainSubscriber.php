@@ -75,6 +75,32 @@ class ChainSubscriber implements EventSubscriberInterface {
   }
 
   /**
+   * Check whether all chained calls in $params are get actions.
+   *
+   * @param $params params for an API call
+   * @returns true if all chained calls in $params are get actions.
+   */
+  private function OnlyGetActions($params) {
+    foreach ($params as $key => $value) {
+      if (preg_match('/^api\.([^.]*)\.(...)/i', $key, $matches) == 1) {
+        if (strtolower($matches[2]) != 'get') {
+          // a chained call that is not a get action: return FALSE.
+          return FALSE;
+        }
+        else {
+          // a get action.
+          if ($this->OnlyGetActions($value) === FALSE) {
+            // if inside the get-action there is an action that is not get:
+            // return FALSE.
+            return FALSE;
+          }
+        }
+      }
+    }
+    return TRUE;
+  }
+
+  /**
    * Call any nested api calls.
    *
    * TODO: We don't really need this to be a separate function.
@@ -87,6 +113,8 @@ class ChainSubscriber implements EventSubscriberInterface {
    */
   protected function callNestedApi(&$params, &$result, $action, $entity, $version) {
     $lowercase_entity = _civicrm_api_get_entity_name_from_camel($entity);
+    // Check whether this call and all nested calls only have 'get' actions.
+    $only_get_actions = strtolower(substr($action, 0, 3)) == 'get' && $this->onlyGetActions($params);
 
     // We don't need to worry about nested api in the getfields/getoptions
     // actions, so just return immediately.
@@ -182,8 +210,25 @@ class ChainSubscriber implements EventSubscriberInterface {
             foreach ($newparams as $entityparams) {
               $subParams = array_merge($genericParams, $entityparams);
               _civicrm_api_replace_variables($subParams, $result['values'][$idIndex], $separator);
-              $result['values'][$result['id']][$field][] = civicrm_api($subEntity, $subaction, $subParams);
-              if ($result['is_error'] === 1) {
+              try {
+                $result['values'][$result['id']][$field][] = civicrm_api($subEntity, $subaction, $subParams);
+              }
+              catch (Exception $e) {
+                if ($only_get_actions) {
+                  // if chained call causes an exception, ignore it if only get
+                  // actions are involved.
+                  // See https://issues.civicrm.org/jira/browse/CRM-16168
+                  $result['values'][$result['id']][$field][] = array(
+                    'is_error' => 1,
+                    'error_message' => $e->getMessage(),
+                  );
+                }
+                else {
+                  throw $e;
+                }
+              }
+              if ($result['is_error'] === 1 && !$only_get_actions) {
+                // Don't throw if the chained call only involves get actions.
                 throw new \Exception($subEntity . ' ' . $subaction . 'call failed with' . $result['error_message']);
               }
             }
@@ -192,8 +237,26 @@ class ChainSubscriber implements EventSubscriberInterface {
 
             $subParams = array_merge($subParams, $newparams);
             _civicrm_api_replace_variables($subParams, $result['values'][$idIndex], $separator);
-            $result['values'][$idIndex][$field] = civicrm_api($subEntity, $subaction, $subParams);
-            if (!empty($result['is_error'])) {
+            try {
+              $result['values'][$idIndex][$field] = civicrm_api($subEntity, $subaction, $subParams);
+            }
+            catch (Exception $e) {
+              if ($only_get_actions) {
+                // if chained call causes an exception, ignore it if only get
+                // actions are involved.
+                // See https://issues.civicrm.org/jira/browse/CRM-16168
+                $result['values'][$result['id']][$field] = array(
+                  'is_error' => 1,
+                  'error_message' => $e->getMessage(),
+                );
+              }
+              else {
+                throw $e;
+              }
+            }
+            if (!empty($result['is_error']) && !$only_get_actions) {
+              // don't throw if the chained call only involves get actions.
+              // See https://issues.civicrm.org/jira/browse/CRM-16168
               throw new \Exception($subEntity . ' ' . $subaction . 'call failed with' . $result['error_message']);
             }
           }
