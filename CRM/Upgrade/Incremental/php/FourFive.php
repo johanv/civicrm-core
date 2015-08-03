@@ -90,7 +90,7 @@ class CRM_Upgrade_Incremental_php_FourFive {
   public function upgrade_4_5_alpha1($rev) {
     // task to process sql
     $this->addTask(ts('Migrate honoree information to module_data'), 'migrateHonoreeInfo');
-    $this->addTask(ts('Upgrade DB to 4.5.alpha1: SQL'), 'task_4_5_x_runSql', $rev);
+    $this->addTask(ts('Upgrade DB to %1: SQL', array(1 => '4.5.alpha1')), 'task_4_5_x_runSql', $rev);
     $this->addTask(ts('Set default for Individual name fields configuration'), 'addNameFieldOptions');
 
     // CRM-14522 - The below schema checking is done as foreign key name
@@ -127,7 +127,7 @@ DROP KEY `{$dao->CONSTRAINT_NAME}`";
    * @return bool
    */
   public function upgrade_4_5_beta9($rev) {
-    $this->addTask(ts('Upgrade DB to 4.5.beta9: SQL'), 'task_4_5_x_runSql', $rev);
+    $this->addTask(ts('Upgrade DB to %1: SQL', array(1 => '4.5.beta9')), 'task_4_5_x_runSql', $rev);
 
     $entityTable = array(
       'Participant' => 'civicrm_participant_payment',
@@ -311,6 +311,85 @@ DROP KEY `{$dao->CONSTRAINT_NAME}`";
 
     return TRUE;
   }
+
+  /**
+   * Upgrade function.
+   *
+   * @param string $rev
+   */
+  public function upgrade_4_5_9($rev) {
+    // Task to process sql.
+    $this->addTask(ts('Upgrade DB to 4.5.9: Fix saved searches consisting of multi-choice custom field(s)'), 'updateSavedSearch');
+
+    return TRUE;
+  }
+
+  /**
+   * Update saved search for multi-select custom fields on DB upgrade
+   *
+   * @param CRM_Queue_TaskContext $ctx
+   *
+   * @return bool TRUE for success
+   */
+  static function updateSavedSearch(CRM_Queue_TaskContext $ctx) {
+    $sql = "SELECT id, form_values FROM civicrm_saved_search";
+    $dao = CRM_Core_DAO::executeQuery($sql);
+    while ($dao->fetch()) {
+      $copy = $formValues = unserialize($dao->form_values);
+      $update = FALSE;
+      foreach ($copy as $field => $data_value) {
+        if (preg_match('/^custom_/', $field) && is_array($data_value) && !array_key_exists("${field}_operator", $formValues)) {
+          // Now check for CiviCRM_OP_OR as either key or value in the data_value array.
+          // This is the conclusive evidence of an old-style data format.
+          if(array_key_exists('CiviCRM_OP_OR', $data_value) || FALSE !== array_search('CiviCRM_OP_OR', $data_value)) {
+            // We have old style data. Mark this record to be updated.
+            $update = TRUE;
+            $op = 'and';
+            if(!preg_match('/^custom_([0-9]+)/', $field, $matches)) {
+              // fatal error?
+              continue;
+            }
+            $fieldID= $matches[1];
+            if (array_key_exists('CiviCRM_OP_OR', $data_value)) {
+              // This indicates data structure identified by jamie in the form:
+              // value1 => 1, value2 => , value3 => 1.
+              $data_value = array_keys($data_value, 1); 
+
+              // If CiviCRM_OP_OR - change OP from default to OR
+              if($data_value['CiviCRM_OP_OR'] == 1) {
+                $op = 'or';
+              }
+              unset($data_value['CiviCRM_OP_OR']);
+            }
+            else {
+              // The value is here, but it is not set as a key.
+              // This is using the style identified by Monish - the existence of the value
+              // indicates an OR search and values are set in the form of:
+              // 0 => value1, 1 => value1, 3 => value2.
+              $key = array_search('CiviCRM_OP_OR', $data_value);
+              $op = 'or';
+              unset($data_value[$key]);
+            }
+     
+            $formValues[$field] = $data_value;
+            $formValues["${field}_operator"] = $op;
+          }
+        }
+      }
+
+      if($update) { 
+        $sql = "UPDATE civicrm_saved_search SET form_values = %0 WHERE id = %1";
+        CRM_Core_DAO::executeQuery($sql,
+          array(
+            array(serialize($formValues), 'String'),
+            array($dao->id, 'Integer'),
+          )
+        );
+      }
+    }
+    return TRUE;
+  }
+
 
   /**
    * (Queue Task Callback)

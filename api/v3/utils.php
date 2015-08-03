@@ -2132,7 +2132,7 @@ function _civicrm_api_get_custom_fields($entity, &$params) {
 /**
  * Translate the custom field data_type attribute into a std 'type'.
  *
- * @param $dataType
+ * @param array $value
  *
  * @return int
  */
@@ -2474,7 +2474,7 @@ function _civicrm_api3_api_resolve_alias($entity, $fieldName) {
   if (strpos($fieldName, 'custom_') === 0 && is_numeric($fieldName[7])) {
     return $fieldName;
   }
-  if ($fieldName == "{$entity}_id") {
+  if ($fieldName == _civicrm_api_get_entity_name_from_camel($entity) . '_id') {
     return 'id';
   }
   $result = civicrm_api($entity, 'getfields', array(
