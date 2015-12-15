@@ -43,9 +43,9 @@ class CRM_Contact_Form_Search_Custom_ZipCodeRange extends CRM_Contact_Form_Searc
 
     $this->_columns = array(
       ts('Contact ID') => 'contact_id',
-      ts('Name') => 'sort_name',
-      ts('Email') => 'email',
-      ts('Zip') => 'postal_code',
+      ts('Name') => 'contact_a.sort_name',
+      ts('Email') => 'email.email',
+      ts('Zip') => 'address.postal_code',
     );
   }
 
@@ -116,10 +116,10 @@ class CRM_Contact_Form_Search_Custom_ZipCodeRange extends CRM_Contact_Form_Searc
     }
     else {
       $selectClause = "
-contact_a.id           as contact_id ,
-contact_a.sort_name    as sort_name  ,
-email.email            as email   ,
-address.postal_code    as postal_code
+contact_a.id           as contact_id,
+contact_a.sort_name,
+email.email,
+address.postal_code
 ";
     }
     return $this->sql($selectClause,
