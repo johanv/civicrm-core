@@ -1643,6 +1643,16 @@ class CRM_Utils_Token {
     }
   }
 
+  public static function getAllEventTokens() {
+    self::_buildEventTokens();
+    return self::$_tokens['event'];
+  }
+
+  public static function getAllParticipantTokens() {
+    self::_buildParticipantTokens();
+    return self::$_tokens['participant'];
+  }
+
   /**
    * Replace tokens for an entity.
    * @param string $entity
@@ -1889,8 +1899,6 @@ class CRM_Utils_Token {
     }
 
     self::_buildParticipantTokens();
-
-    $params = array('entity_id' => $participant['id'], 'entity_table' => 'civicrm_participant');
 
     switch ($token) {
       case 'currency':

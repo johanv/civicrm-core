@@ -88,6 +88,14 @@ class CRM_Event_Form_Task_PDF extends CRM_Event_Form_Task {
     // Not sure how bad this is...
     list($formValues, $categories, $html_message, $messageToken, $returnProperties) = CRM_Contact_Form_Task_PDFLetterCommon::processMessageTemplate($formValues);
 
+    $tokenProcessor = new \Civi\Token\TokenProcessor(
+      \Civi\Core\Container::singleton()->get('dispatcher'), array(
+        'controller' => __CLASS__, // ??
+        'smarty' => FALSE,
+      ));
+    $tokenProcessor->addMessage('body_html', $html_message, 'text/html');
+
+    // TODO: gebruik deze variabelen.
     $skipOnHold = isset($this->skipOnHold) ? $this->skipOnHold : FALSE;
     $skipDeceased = isset($this->skipDeceased) ? $this->skipDeceased : TRUE;
 
@@ -99,37 +107,13 @@ class CRM_Event_Form_Task_PDF extends CRM_Event_Form_Task {
       $participant = CRM_Utils_Array::first($participant_result['values']);
       $event = $participant['api.Event.getsingle'];
 
-      // get contact information
-      // Use 'getTokenDetails' so that hook_civicrm_tokenValues is called.
-      $contactId = $participant['contact_id'];
-      $tokenDetails = CRM_Utils_Token::getTokenDetails(array($contactId),
-        $returnProperties,
-        $skipOnHold,
-        $skipDeceased,
-        NULL,
-        $messageToken,
-        'CRM_Event_Form_Task_PDF'
-      );
-
-      if (!CRM_Utils_Array::first($tokenDetails)) {
-        continue;
-      }
-      $contact = CRM_Utils_Array::first(CRM_Utils_Array::first($tokenDetails));
-
-      $tokenHtml = CRM_Utils_Token::replaceContactTokens($html_message, $contact, TRUE, $messageToken);
-      $tokenHtml = CRM_Utils_Token::replaceEntityTokens('event', $event, $tokenHtml, $messageToken);
-      $tokenHtml = CRM_Utils_Token::replaceEntityTokens('participant', $participant, $tokenHtml, $messageToken);
-      $tokenHtml = CRM_Utils_Token::replaceHookTokens($tokenHtml, $contact, $categories, TRUE);
-
-      if (defined('CIVICRM_MAIL_SMARTY') && CIVICRM_MAIL_SMARTY) {
-        $smarty = CRM_Core_Smarty::singleton();
-        // also add the contact tokens to the template
-        $smarty->assign_by_ref('contact', $contact);
-        $smarty->assign_by_ref('event', $event);
-        $smarty->assign_by_ref('participant', $participant);
-        $tokenHtml = $smarty->fetch("string:$tokenHtml");
-      }
-
+      $tokenProcessor->addRow()
+        ->context('contactId', $participant['contact_id'])
+        ->context('participant', $participant)
+        ->context('event', $event);
+    }
+    foreach ($tokenProcessor->evaluate()->getRows() as $tokenRow) {
+      $tokenHtml = $tokenRow->render('body_html');
       $html[] = $tokenHtml;
     }
 

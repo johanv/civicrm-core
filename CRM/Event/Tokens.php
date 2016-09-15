@@ -104,10 +104,117 @@ LEFT JOIN civicrm_phone phone ON phone.id = lb.phone_id
    *   The name of the token field.
    * @param mixed $prefetch
    *   Any data that was returned by the prefetch().
-   *
-   * @return mixed
    */
   public function evaluateToken(\Civi\Token\TokenRow $row, $entity, $field, $prefetch = NULL) {
+    if (!empty($row->context['actionSearchResult'])) {
+      $this->evaluateReminderToken($row, $entity, $field);
+      return;
+    }
+    // evaluate participant tokens
+    $participant = $row->context['participant'];
+    foreach (CRM_Utils_Token::getAllParticipantTokens() as $token) {
+      switch ($token) {
+        case 'currency':
+          $value = $participant['participant_fee_currency'];
+          break;
+
+        case 'participant_fee_level':
+          if (is_array($participant['participant_fee_level'])) {
+            $value = '';
+            foreach ($participant['participant_fee_level'] as $fee_level) {
+              $value .= $fee_level . "<br>";
+            }
+          }
+          else {
+            $value = $participant['participant_fee_level'];
+          }
+          break;
+
+        case 'event_end_date':
+        case 'event_start_date':
+          $value = CRM_Utils_Date::customFormat($participant[$token]);
+          break;
+
+        case 'participant_id':
+          // I'm not sure why participant_id is not there by default.
+          // I add it here, because I have a use case for this ;-)
+          $value = $participant['id'];
+          break;
+
+        default:
+          $value = $participant[$token];
+          break;
+      }
+      $row->tokens('participant', $token, $value);
+    }
+    // evaluate event tokens
+    $event = $row->context['event'];
+    foreach (CRM_Utils_Token::getAllEventTokens() as $token) {
+      switch ($token) {
+        case 'title':
+          $value = $event['event_title'];
+          break;
+
+        case 'end_date':
+        case 'start_date':
+          $value = CRM_Utils_Date::customFormat($event[$token]);
+          break;
+
+        case 'type':
+          $params = array(
+            'option_group_id' => 14,
+            'value' => $event['event_type_id'],
+            'return' => 'label',
+          );
+          $value = civicrm_api3('OptionValue', 'getvalue', $params);
+          break;
+
+        case 'location':
+          $location = CRM_Core_BAO_Location::getValues($params, TRUE);
+          foreach ($location['address'] as $address) {
+            $value = $address['display_text'];
+          }
+          break;
+
+        case 'info_url':
+          $value = CIVICRM_UF_BASEURL . 'civicrm/event/info?reset=1&id=' . $event['id'];
+          break;
+
+        case 'registration_url':
+          $value = CIVICRM_UF_BASEURL . 'civicrm/event/register?reset=1&id=' . $event['id'];
+          break;
+
+        case 'event_id':
+          $value = $event['id'];
+          break;
+
+        case 'event_type':
+          $value = CRM_Utils_Array::value($event['event_type_id'], CRM_Event_PseudoConstant::eventType());
+          break;
+
+        default:
+          $value = $event[$token];
+          break;
+      }
+      $row->tokens('event', $token, $value);
+    }
+  }
+
+  /**
+   * Evaluate the content of a single token for the reminder e-mail.
+   *
+   * This was the original function, but I created a new one because I need
+   * more fields for PDF letters or e-mails.
+   *
+   * @param \Civi\Token\TokenRow $row
+   *   The record for which we want token values.
+   * @param string $entity
+   * @param string $field
+   *   The name of the token field.
+   * @param mixed $prefetch
+   *   Any data that was returned by the prefetch().
+   */
+  protected function evaluateReminderToken(\Civi\Token\TokenRow $row, $entity, $field) {
     $actionSearchResult = $row->context['actionSearchResult'];
 
     if ($field == 'location') {
@@ -152,5 +259,4 @@ LEFT JOIN civicrm_phone phone ON phone.id = lb.phone_id
       $row->tokens($entity, $field, '');
     }
   }
-
 }

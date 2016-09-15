@@ -258,7 +258,7 @@ class CRM_Contact_Form_Task_PDFLetterCommon {
    * @param array $formValues
    *
    * @return array
-   *   [$categories, $html_message, $messageToken, $returnProperties]
+   *   [$formValues, $categories, $html_message, $messageToken, $returnProperties]
    */
   public static function processMessageTemplate($formValues) {
     $html_message = CRM_Utils_Array::value('html_message', $formValues);
