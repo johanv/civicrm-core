@@ -524,7 +524,7 @@ class CRM_Core_SelectValues {
    * @return array
    */
   public static function eventTokens() {
-    return array(
+    $tokens = array(
       '{event.event_id}' => ts('Event ID'),
       '{event.title}' => ts('Event Title'),
       '{event.start_date}' => ts('Event Start Date'),
@@ -540,6 +540,14 @@ class CRM_Core_SelectValues {
       '{event.registration_url}' => ts('Event Registration URL'),
       '{event.balance}' => ts('Event Balance'),
     );
+
+    // Add custom fields:
+    $customEventTokens = CRM_Core_BAO_CustomField::getFields('Event');
+    foreach ($customEventTokens as $customEventTokenKey => $customEventTokenValue) {
+      $tokens["{event.custom_$customEventTokenKey}"] = $customEventTokenValue['label'] . '::' . $customEventTokenValue['groupTitle'];
+    }
+
+    return $tokens;
   }
 
   /**

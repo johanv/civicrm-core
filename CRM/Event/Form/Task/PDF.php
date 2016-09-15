@@ -159,6 +159,10 @@ class CRM_Event_Form_Task_PDF extends CRM_Event_Form_Task {
   public function listTokens() {
     $tokens = CRM_Core_SelectValues::contactTokens();
     $tokens = array_merge(CRM_Core_SelectValues::eventTokens(), $tokens);
+    $tokens = array_merge(CRM_Core_SelectValues::participantTokens(), $tokens);
+
+    // Unset a couple of tokens.
+
     // unset contact_email and contact_phone tokens.
     // These are location_email and location_contact
     // Should be cleaned up after ActionSchedule token replacement cleanup.
@@ -168,12 +172,7 @@ class CRM_Event_Form_Task_PDF extends CRM_Event_Form_Task {
     // I'm not sure how it got here, but I'll just unset it.
     unset($tokens['{event.fee_amount}']);
 
-    $customEventTokens = CRM_Core_BAO_CustomField::getFields('Event');
-
-    foreach ($customEventTokens as $customEventTokenKey => $customEventTokenValue) {
-      $tokens["{event.custom_$customEventTokenKey}"] = $customEventTokenValue['label'] . '::' . $customEventTokenValue['groupTitle'];
-    }
-    $tokens = array_merge(CRM_Core_SelectValues::participantTokens(), $tokens);
+    // Not sure why these are unset:
     unset($tokens['{participant.template_title}']);
     unset($tokens['{participant.fee_label}']);
     unset($tokens['{participant.default_role_id}']);
