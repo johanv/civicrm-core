@@ -44,7 +44,7 @@ class CRM_Event_Tokens extends \Civi\Token\AbstractTokenSubscriber {
    * Class constructor.
    */
   public function __construct() {
-    parent::__construct('event', array(
+    $tokens = array(
       'event_type' => ts('Event Type'),
       'title' => ts('Event Title'),
       'event_id' => ts('Event ID'),
@@ -59,7 +59,13 @@ class CRM_Event_Tokens extends \Civi\Token\AbstractTokenSubscriber {
       'contact_email' => ts('Event Contact (Email)'),
       'contact_phone' => ts('Event Contact (Phone)'),
       'balance' => ts('Event Balance'),
-    ));
+    );
+    // Add custom fields:
+    $customEventTokens = CRM_Core_BAO_CustomField::getFields('Event');
+    foreach ($customEventTokens as $customEventTokenKey => $customEventTokenValue) {
+      $tokens["custom_$customEventTokenKey"] = $customEventTokenValue['label'] . '::' . $customEventTokenValue['groupTitle'];
+    }
+    parent::__construct('event', $tokens);
   }
 
   /**
